@@ -1,17 +1,18 @@
 #!/bin/bash
+
 function Welcome()
 {
-cd /root
 clear
-printf "                Service Time : " && date -R
+echo -n "                      Local Time :   " && date "+%F [%T]       ";
 echo "            ======================================================";
 echo "            |                    serverSpeeder                   |";
-echo "            |                                          Debian 7  |";
-echo "            |                                           3.2.0-4  |";
+echo "            |                                         for Linux  |";
 echo "            |----------------------------------------------------|";
 echo "            |                                       -- By .Vicer |";
 echo "            ======================================================";
 echo "";
+rootness;
+cd /root
 }
 
 function rootness()
@@ -24,7 +25,6 @@ fi
 
 function pause()
 {
-echo "";
 read -n 1 -p "Press Enter to Continue..." INP
 if [ "$INP" != '' ] ; then
 echo -ne '\b \n'
@@ -32,64 +32,76 @@ echo "";
 fi
 }
 
-function Clear()
+function Check()
 {
-chattr -R -i /appex >/dev/null 2>&1
-chattr -R -i /serverSpeeder >/dev/null 2>&1
-rm -rf /appex >/dev/null 2>&1
-rm -rf /serverSpeeder >/dev/null 2>&1
-sed -i '/deb cdrom/'d /etc/apt/sources.list
-sed -i '/^$/'d /etc/apt/sources.list
-}
-
-function ServerIP()
-{
-serverip=$(wget -qO- ipv4.icanhazip.com)
-printf "Default Server IP: \e[36m$serverip\e[0m .\nIf Default Server IP \e[31mcorrect\e[0m, Press Enter .\nIf Default Server IP \e[31mincorrect\e[0m, Please input Server IP :"
-read serveriptmp
-if [[ -n "$serveriptmp" ]]; then
-    serverip=$serveriptmp
-fi
-printf "Server IP: \e[35m$serverip\e[0m .\n";
-ETHER;
-if [[ "$sysOVZ" == "yes" ]]; then
-echo "Your server NOT support serverSpeeder! "
+echo 'Preparatory work...'
+apt-get >/dev/null 2>&1
+[ $? -le '1' ] && apt-get -y -qq install curl grep unzip ethtool >/dev/null 2>&1
+yum >/dev/null 2>&1
+[ $? -le '1' ] && yum -y -q install which sed curl grep awk unzip ethtool >/dev/null 2>&1
+[ -f /etc/redhat-release ] && KNA=$(awk '{print $1}' /etc/redhat-release)
+[ -f /etc/os-release ] && KNA=$(awk -F'[= "]' '/PRETTY_NAME/{print $3}' /etc/os-release)
+[ -f /etc/lsb-release ] && KNA=$(awk -F'[="]+' '/DISTRIB_ID/{print $2}' /etc/lsb-release)
+KNB=$(getconf LONG_BIT)
+ifconfig >/dev/null 2>&1
+[ $? -gt '1' ] && echo -ne "I can not run 'ifconfig' successfully! \nPlease check your system, and try again! \n\n" && exit 1;
+Eth=$(ifconfig |grep -B1 "$(wget -qO- ipv4.icanhazip.com)" |awk -F '[: ]' '/eth/{ print $1 }') 
+[ -n "$Eth" ] && NumEth=$(ifconfig |awk -F '[: ]' '/eth/{ print $1 }' |sed -n '$=')
+[ -z "$Eth" ] && echo -ne "It is seem that you server not as usually. \nPlease input your public Ethernet: " && read tmpEth;
+tmpEth=$(echo "$tmpEth"|sed 's/[ \t]*//g') && [ -n "$tmpEth" ] && [ -z $(echo "$tmpEth" |grep -E -i "venet") ] && [[ -n $(ifconfig |grep -E "$tmpEth") ]] && Eth="$tmpEth";
+[ -z "$Eth" ] && echo "I can not find the server pubilc Ethernet! " && exit 1
+URLKernel='https://raw.githubusercontent.com/0oVicero0/serverSpeeder_kernel/master/serverSpeeder.txt'
+MyKernel=$(curl -k -q --progress-bar "$URLKernel" |grep "$KNA/" |grep "/x$KNB/" |grep "/$KNK/" |sort -k3 -t '_' |tail -n 1)
+[ -z "$MyKernel" ] && echo -ne "Kernel not be matched! \nYou should change kernel manually, and try again! \n\nView the link to get detaits: \n"$URLKernel" \n\n\n" && exit 1
 pause;
-exit 1
-elif [[ "$sysOVZ" == "no" ]]; then
-MyKernel=`uname -r| grep -E "3.2.0-4-amd64|3.2.0-4-686-pae"`
-if [[ $MyKernel == "" ]]; then
-echo "Your server NOT support $0! "
-pause;
-exit 1
-fi fi
-}
-
-function ETHER()
-{
-ETH=`ifconfig |awk '/venet/{ print $1 }' |sed -n '1p'`;
-if [[ "$ETH" == "venet0" ]]; then
-Eth="venet0";
-sysOVZ="yes";
-else
-ETH=`ifconfig |awk '/eth/{ print $1 }' |sed -n '1p'`;
-if [[ "$ETH" == "eth1" ]]; then
-Eth="eth1";
-sysOVZ="no";
-elif [[ "$ETH" == "eth0" ]]; then
-Eth="eth0";
-sysOVZ="no";
-fi fi
 }
 
 function SelectKernel()
 {
-if [[ $MyKernel == "3.2.0-4-686-pae" ]]; then
-wget --no-check-certificate -q -O "/root/appex/apxfiles/bin/acce-3.10.61.0-[Debian_7_3.2.0-4-686-pae]" "https://raw.githubusercontent.com/0oVicero0/serverSpeeder_kernel/master/Debian/7/3.2.0-4-686-pae/x32/3.10.61.0/serverspeeder_2623"
-fi
-if [[ $MyKernel == "3.2.0-4-amd64" ]]; then
-wget --no-check-certificate -q -O "/root/appex/apxfiles/bin/acce-3.10.61.0-[Debian_7_3.2.0-4-amd64]" "https://raw.githubusercontent.com/0oVicero0/serverSpeeder_kernel/master/Debian/7/3.2.0-4-amd64/x64/3.10.61.0/serverspeeder_2626"
-fi
+KNN=$(echo $MyKernel |awk -F '/' '{ print $2 }') && [ -z "$KNN" ] && Unstall && echo "Error,Not Matched! " && exit 1
+KNV=$(echo $MyKernel |awk -F '/' '{ print $5 }') && [ -z "$KNV" ] && Unstall && echo "Error,Not Matched! " && exit 1
+wget --no-check-certificate -q -O "/root/appex/apxfiles/bin/acce-"$KNV"-["$KNA"_"$KNN"_"$KNK"]" "https://raw.githubusercontent.com/0oVicero0/serverSpeeder_kernel/master/$MyKernel"
+[ ! -f "/root/appex/apxfiles/bin/acce-"$KNV"-["$KNA"_"$KNN"_"$KNK"]" ] && Unstall && echo "Download Error,Not Found acce-$KNV-[$KNA_$KNN_$KNK]! " && exit 1
+}
+
+function Install()
+{
+Welcome;
+Check;
+ServerSpeeder;
+dl-Lic;
+bash /root/appex/install.sh
+rm -rf /root/appex* >/dev/null 2>&1
+clear
+bash /appex/bin/lotServer.sh status
+exit 0
+}
+
+function Unstall()
+{
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/init.d/lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc2.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc3.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc4.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc5.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc0.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc1.d/*lotServer >/dev/null 2>&1
+[ -d /etc/rc.d ] && rm -rf /etc/rc.d/rc6.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/init.d/lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc2.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc3.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc4.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc5.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc0.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc1.d/*lotServer >/dev/null 2>&1
+[ -d /etc/init.d ] && rm -rf /etc/rc6.d/*lotServer >/dev/null 2>&1
+rm -rf /etc/lotServer.conf >/dev/null 2>&1
+chattr -R -i /appex >/dev/null 2>&1
+bash /appex/bin/lotServer.sh uninstall -f >/dev/null 2>&1
+rm -rf /appex >/dev/null 2>&1
+rm -rf /root/appex* >/dev/null 2>&1
+echo -ne 'lotServer have been removed! \n\n\n'
+exit 0
 }
 
 function dl-Lic()
@@ -97,74 +109,33 @@ function dl-Lic()
 chattr -R -i /appex >/dev/null 2>&1
 rm -rf /appex >/dev/null 2>&1
 mkdir -p /appex/etc
-MAC=`ifconfig $Eth | awk '/HWaddr/{ print $5 }'`
-wget --no-check-certificate -q -O /appex/etc/apx.lic "http://serverspeeder.azurewebsites.net/lic?mac=$MAC"
-SIZE=`du -b /appex/etc/apx.lic |awk '{ print $1 }'`
-if [[ $SIZE == '0' ]]; then
-echo "Lic download error, try again! "
-echo "Please wait..."
-sleep 7;
-dl-Lic;
-else
-echo "Lic download success! "
+mkdir -p /appex/bin
+[ -n "$NumEth" ] && [ "$NumEth" -ne '1' ] && Eth='eth0'
+MAC=$(ifconfig "$Eth" |awk '/HWaddr/{ print $5 }')
+[ -z "$MAC" ] && MAC=$(ifconfig "$Eth" |awk '/ether/{ print $2 }')
+[ -z "$MAC" ] && Unstall && echo "Not Found MAC address! " && exit 1
+wget --no-check-certificate -q -O "/appex/etc/apx.lic" "http://serverspeeder.azurewebsites.net/lic?mac=$MAC"
+[ "$(du -b /appex/etc/apx.lic |awk '{ print $1 }')" -ne '152' ] && Unstall && echo "Error! I can not generate the Lic for you, Please try again later! " && exit 1
+echo "Lic generate success! "
 chattr +i /appex/etc/apx.lic
-Install-serverspeeder;
-fi
+[ -n $(which ethtool) ] && rm -rf /appex/bin/ethtool && cp -f $(which ethtool) /appex/bin
 }
 
 function ServerSpeeder()
 {
-if [[ `which unzip` == "" ]]; then
-apt-get update
-apt-get install -y unzip zip
-fi
-wget --no-check-certificate -q -O /root/appex.zip https://raw.githubusercontent.com/0oVicero0/serverSpeeser_Install/master/appex.zip
+[ ! -f /root/appex.zip ] && wget --no-check-certificate -q -O "/root/appex.zip" "https://raw.githubusercontent.com/0oVicero0/serverSpeeser_Install/master/appex.zip"
+[ ! -f /root/appex.zip ] && Unstall && echo "Error,Not Found appex.zip! " && exit 1
 mkdir -p /root/appex
 unzip -o -d /root/appex /root/appex.zip
 SelectKernel;
-APXEXE=`du -a /root/appex/apxfiles/bin |awk -F "/" '/acce/{ print $6 }'`
+APXEXE=$(ls -1 /root/appex/apxfiles/bin |grep 'acce-')
+sed -i "s/^accif\=.*/accif\=\"$Eth\"/" /root/appex/apxfiles/etc/config
 sed -i "s/^apxexe\=.*/apxexe\=\"\/appex\/bin\/$APXEXE\"/" /root/appex/apxfiles/etc/config
-HOSTS=`cat /etc/hosts | grep 'dl.serverspeeder.com' | awk '{print $1}'`
-if [[ "$HOSTS" != $serverip ]]; then
-echo " " >> /etc/hosts
-echo "$serverip	$serverip dl.serverspeeder.com" >> /etc/hosts
-fi
-HOSTS=`cat /etc/hosts | grep 'my.serverspeeder.com' | awk '{print $1}'`
-if [[ "$HOSTS" != "127.0.0.1" ]]; then
-echo "127.0.0.1 my.serverspeeder.com" >> /etc/hosts
-fi
-HOSTS=`cat /etc/hosts | grep 'www.serverspeeder.com' | awk '{print $1}'`
-if [[ "$HOSTS" != "127.0.0.1" ]]; then
-echo "127.0.0.1 www.serverspeeder.com" >> /etc/hosts
-fi
-dl-Lic;
 }
 
-function Install-ethtool()
-{
-ethtooldir=`which ethtool`
-if [[ "$ethtooldir" != "" ]]; then
-rm -rf /appex/bin/ethtool >/dev/null 2>&1
-mkdir -p /appex/bin
-cp -f $ethtooldir /appex/bin
-chmod -R +X /appex >/dev/null 2>&1
-else
-apt-get install -y -qq ethtool >/dev/null 2>&1
-Install-ethtool;
-fi
-}
+[ $# == '1' ] && [ "$1" == 'install' ] && KNK="$(uname -r)" && Install;
+[ $# == '1' ] && [ "$1" == 'unstall' ] && Welcome && pause && Unstall;
+[ $# == '2' ] && [ "$1" == 'install' ] && KNK="$2" && Install;
+echo -ne "Usage:\n     bash $0 [install |unstall |install '{lotServer of Kernel Version}']\n"
 
-function Install-serverspeeder()
-{
-Install-ethtool;
-bash /root/appex/install.sh
-}
 
-Welcome;
-rootness;
-Clear;
-ServerIP;
-ServerSpeeder;
-rm -rf /root/appex* >/dev/null 2>&1
-clear
-bash /appex/bin/serverSpeeder.sh status
